@@ -7,13 +7,24 @@ interface EmailJSConfig {
   serviceId: string;
   templateId: string;
   publicKey: string;
+  // Nouveaux paramètres d'email
+  fromName?: string;
+  fromEmail?: string;
+  replyTo?: string;
+  bcc?: string;
+  cc?: string;
 }
 
 // Configuration globale EmailJS
 let globalEmailJSConfig: EmailJSConfig = {
   serviceId: 'ton_service_id',
   templateId: 'ton_template_id',
-  publicKey: 'ton_public_key'
+  publicKey: 'ton_public_key',
+  fromName: '',
+  fromEmail: '',
+  replyTo: '',
+  bcc: '',
+  cc: ''
 };
 
 // Fonction pour charger la configuration depuis Firestore
@@ -22,7 +33,17 @@ export const loadEmailJSConfig = async (establishmentId: string): Promise<boolea
     const configDoc = await getDoc(doc(db, 'emailConfigs', establishmentId));
     
     if (configDoc.exists()) {
-      const config = configDoc.data() as EmailJSConfig;
+      const data = configDoc.data();
+      const config: EmailJSConfig = {
+        serviceId: data.serviceId || 'ton_service_id',
+        templateId: data.templateId || 'ton_template_id',
+        publicKey: data.publicKey || 'ton_public_key',
+        fromName: data.fromName || '',
+        fromEmail: data.fromEmail || '',
+        replyTo: data.replyTo || '',
+        bcc: data.bcc || '',
+        cc: data.cc || ''
+      };
       globalEmailJSConfig = config;
       
       // Initialiser EmailJS avec la clé publique
@@ -50,23 +71,15 @@ export const getEmailJSConfig = (): EmailJSConfig => {
 // Fonction pour mettre à jour la configuration
 export const updateEmailJSConfig = async (
   establishmentId: string, 
-  serviceId: string, 
-  templateId: string, 
-  publicKey: string
+  config: EmailJSConfig
 ): Promise<{ saved: boolean; error?: any }> => {
   try {
-    const config: EmailJSConfig = {
-      serviceId,
-      templateId,
-      publicKey
-    };
-    
     // Mettre à jour la configuration globale
     globalEmailJSConfig = config;
     
     // Initialiser EmailJS avec la nouvelle clé publique
-    if (publicKey && publicKey !== 'ton_public_key') {
-      emailjs.init(publicKey);
+    if (config.publicKey && config.publicKey !== 'ton_public_key') {
+      emailjs.init(config.publicKey);
       console.log('✅ EmailJS initialisé avec la nouvelle configuration');
     }
     
@@ -81,7 +94,7 @@ export const updateEmailJSConfig = async (
 };
 
 // Fonction pour tester la configuration EmailJS
-export const testEmailJSConfiguration = async (): Promise<{ success: boolean; message: string; error?: any }> => {
+export const testEmailJSConfiguration = async (testEmailAddress?: string): Promise<{ success: boolean; message: string; error?: any }> => {
   try {
     const config = getEmailJSConfig();
     
@@ -97,14 +110,41 @@ export const testEmailJSConfiguration = async (): Promise<{ success: boolean; me
     
     // Paramètres de test
     const templateParams = {
-      to_email: 'test@example.com',
-      to_name: 'Test',
-      establishment_name: 'Test Establishment',
+      to_email: testEmailAddress || 'test@example.com',
+      to_name: testEmailAddress ? testEmailAddress.split('@')[0] : 'Test',
+      // Informations de l'établissement
+      establishment_name: config.fromName || 'Test Establishment',
+      establishment_address: 'Antananarivo, Madagascar',
+      establishment_phone: '+261 34 12 345 67',
+      establishment_email: config.fromEmail || 'test@example.com',
+      establishment_nif: '1234567890',
+      establishment_stat: '12345678901234',
+      // Informations du reçu de test
       receipt_number: 'TEST-001',
-      date: new Date().toLocaleDateString('fr-FR'),
-      total_amount: '1000 Ar',
-      items_content: 'Article de test x1 - 1000 Ar',
-      payment_method: 'Test'
+      date: new Date().toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      cashier_name: 'Caissier Test',
+      customer_name: testEmailAddress ? testEmailAddress.split('@')[0] : 'Client Test',
+      // Articles de test en HTML
+      items_content: '<tr><td>Article de test</td><td>1</td><td>1 000 Ar</td><td>1 000 Ar</td></tr>',
+      subtotal: '833 Ar',
+      tax_amount: '167 Ar',
+      total_amount: '1 000 Ar',
+      payment_method: 'Espèces',
+      payment_amount: '1 000 Ar',
+      change_amount: '0 Ar',
+      amount_in_words: 'mille ariary',
+      // Paramètres d'envoi personnalisés
+      from_name: config.fromName || 'Test Establishment',
+      from_email: config.fromEmail || 'noreply@test.com',
+      reply_to: config.replyTo || config.fromEmail || 'noreply@test.com',
+      bcc: config.bcc || '',
+      cc: config.cc || ''
     };
     
     // Envoyer l'email de test
@@ -117,7 +157,9 @@ export const testEmailJSConfiguration = async (): Promise<{ success: boolean; me
     
     return {
       success: true,
-      message: 'Configuration EmailJS valide - Email de test envoyé'
+      message: testEmailAddress 
+        ? `Email de test envoyé avec succès à ${testEmailAddress}` 
+        : 'Configuration EmailJS valide - Test réussi'
     };
   } catch (error) {
     console.error('Erreur lors du test EmailJS:', error);
@@ -183,12 +225,14 @@ export const sendReceiptByEmail = async (
     
     // Paramètres du template
     const templateParams = {
+      // Informations de l'établissement
       establishment_name: receiptData.establishmentInfo.name,
       establishment_address: receiptData.establishmentInfo.address,
       establishment_phone: receiptData.establishmentInfo.phone,
       establishment_email: receiptData.establishmentInfo.email,
       establishment_nif: receiptData.establishmentInfo.nif || '',
       establishment_stat: receiptData.establishmentInfo.stat || '',
+      // Informations du reçu
       receipt_number: receiptData.receiptNumber,
       date: receiptData.date.toLocaleDateString('fr-FR', {
         day: '2-digit',
@@ -207,9 +251,15 @@ export const sendReceiptByEmail = async (
       payment_amount: formatAmount(receiptData.paymentAmount),
       change_amount: receiptData.changeAmount > 0 ? formatAmount(receiptData.changeAmount) : '0 Ar',
       amount_in_words: receiptData.amountInWords || '',
-      // Paramètres EmailJS standards
+      // Paramètres de destination
       to_email: customerEmail,
-      to_name: receiptData.customerName || 'Client'
+      to_name: receiptData.customerName || 'Client',
+      // Paramètres d'envoi personnalisés
+      from_name: config.fromName || receiptData.establishmentInfo.name,
+      from_email: config.fromEmail || receiptData.establishmentInfo.email,
+      reply_to: config.replyTo || config.fromEmail || receiptData.establishmentInfo.email,
+      bcc: config.bcc || '',
+      cc: config.cc || ''
     };
     
     // Envoyer l'email

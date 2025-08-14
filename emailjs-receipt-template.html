@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reçu {{receipt_number}} - {{establishment_name}}</title>
+    <!-- Configuration des en-têtes d'email -->
+    <meta name="from-name" content="{{from_name}}">
+    <meta name="from-email" content="{{from_email}}">
+    <meta name="reply-to" content="{{reply_to}}">
+    {{#if bcc}}<meta name="bcc" content="{{bcc}}">{{/if}}
+    {{#if cc}}<meta name="cc" content="{{cc}}">{{/if}}
     <style>
         body {
             margin: 0;
@@ -308,7 +314,7 @@
             <div class="company-info">
                 {{establishment_address}}<br>
                 Tél: {{establishment_phone}}<br>
-                Email: {{establishment_email}}
+                Email: {{reply_to}}
                 {{#establishment_nif}}
                 <br>NIF: {{establishment_nif}}
                 {{/establishment_nif}}
@@ -423,8 +429,9 @@
             <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #ccc; font-size: 12px; color: #888;">
                 <p style="margin: 0;">
                     📧 Reçu envoyé automatiquement par email<br>
-                    🌐 Nirina Nirina Pos Madagascar - Système de Point de Vente<br>
-                    💻 Propulsé par SaaS POS Madagascar
+                    🌐 {{establishment_name}} - Système de Point de Vente<br>
+                    💻 Propulsé par SaaS POS Madagascar<br>
+                    {{#if reply_to}}📞 Contact: {{reply_to}}{{/if}}
                 </p>
             </div>
         </div>
@@ -437,7 +444,7 @@
         ========================================
         {{establishment_address}}
         Tél: {{establishment_phone}}
-        Email: {{establishment_email}}
+        Email: {{reply_to}}
         {{#establishment_nif}}NIF: {{establishment_nif}}{{/establishment_nif}}
         {{#establishment_stat}}STAT: {{establishment_stat}}{{/establishment_stat}}
         
@@ -466,6 +473,7 @@
         ----------------------------------------
         Merci de votre visite !
         Conservez ce reçu pour tout échange
+        {{#if reply_to}}Contact: {{reply_to}}{{/if}}
         ========================================
     </div>
 </body>
